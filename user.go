@@ -2,6 +2,10 @@ package user
 
 import (
 	"net/http"
+	"os/user"
+	"runtime"
+	"strconv"
+	"syscall"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -17,15 +21,24 @@ func init() {
 
 // User holds the user id or username to we should use for serve requests.
 type User struct {
-	User   string `json:"user,omitempty"`
-	uid    string
-	gid    string
-	logger *zap.Logger
+	User string `json:"user,omitempty"`
+	uid  uintptr
+	l    *zap.Logger
 }
 
 // ServeHTTP implements caddyhttp.MiddlewareHandler.
 func (u User) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
-	return next.ServeHTTP(w, r)
+	// most of this stolen from: https://stackoverflow.com/questions/56403237/is-it-possible-to-run-a-goroutine-or-go-method-under-a-different-user
+	// TL;DR: we lock the goroutine to a thread and then call setuid
+	runtime.LockOSThread()
+	if _, _, errno := syscall.Syscall(syscall.SYS_SETUID, u.uid, 0, 0); errno != 0 {
+		u.l.Sugar().Warnf("Unable to set user to: %s:%d ", u.User, errno)
+	}
+	u.l.Sugar().Infof("uid: %d", syscall.Getuid())
+	u.l.Sugar().Infof("euid: %d", syscall.Geteuid())
+	err := next.ServeHTTP(w, r)
+	runtime.UnlockOSThread()
+	return err
 }
 
 // CaddyModule returns the Caddy module information.
@@ -37,7 +50,7 @@ func (User) CaddyModule() caddy.ModuleInfo {
 }
 
 func (u *User) Provision(ctx caddy.Context) error {
-	u.logger = ctx.Logger()
+	u.l = ctx.Logger()
 	return nil
 }
 
@@ -51,7 +64,14 @@ func (u *User) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 		return d.ArgErr()
 	}
 
-	u.User = d.Val() // lookup, uid and gid? TODO(miek)
+	u.User = d.Val()
+	u1, err := user.Lookup(u.User)
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.ParseUint(u1.Uid, 10, 64)
+	u.uid = uintptr(uid)
+
 	return nil
 }
 

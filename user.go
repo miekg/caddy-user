@@ -54,10 +54,18 @@ func (u *User) CaddyModule() caddy.ModuleInfo {
 
 func (u *User) Provision(ctx caddy.Context) error {
 	u.l = ctx.Logger()
+	u1, err := user.Lookup(u.User)
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.ParseUint(u1.Uid, 10, 64)
+	if err != nil {
+		return err
+	}
+	u.l.Info("looked up user details", zap.String("user", u.User), zap.Uint64("uid", uid))
+	u.Uid = uintptr(uid)
 	return nil
 }
-
-func (u *User) Validate() error { return nil }
 
 // UnmarshalCaddyfile implements caddyfile.Unmarshaler.
 func (u *User) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
@@ -68,18 +76,6 @@ func (u *User) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 	}
 
 	u.User = d.Val()
-	u1, err := user.Lookup(u.User)
-	if err != nil {
-		return err
-	}
-	log.Printf("User: " + u.User)
-	uid, err := strconv.ParseUint(u1.Uid, 10, 64)
-	if err != nil {
-		return err
-	}
-	log.Printf("Uid: %d", uid)
-	u.Uid = uintptr(uid)
-
 	return nil
 }
 
@@ -92,7 +88,6 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 
 var (
 	_ caddy.Provisioner           = (*User)(nil)
-	_ caddy.Validator             = (*User)(nil)
 	_ caddyfile.Unmarshaler       = (*User)(nil)
 	_ caddyhttp.MiddlewareHandler = (*User)(nil)
 )

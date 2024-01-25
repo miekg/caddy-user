@@ -2,7 +2,11 @@
 
 This caddy module performs a setuid on the goroutine handling the request. This works.
 
-HOWEVER DUE TO THE UNIX PROCESS MODULE IT CAN'T WORK
+~~~
+@@@@@@@@@
+HOWEVER DUE TO THE UNIX PROCESS MODEL IT CAN'T WORK
+@@@@@@@@@
+~~~
 
 Setuid works on the entire process, not a single goroutine. So while this does what is advertized,
 it can't work for concurrent requests or even setuid-ing to different user accounts.

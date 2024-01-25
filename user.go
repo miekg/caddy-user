@@ -16,7 +16,7 @@ import (
 
 func init() {
 	caddy.RegisterModule(User{})
-	httpcaddyfile.RegisterHandlerDirective("visitor_ip", parseCaddyfile)
+	httpcaddyfile.RegisterHandlerDirective("user", parseCaddyfile)
 }
 
 // User holds the user id or username to we should use for serve requests.
